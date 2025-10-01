@@ -1,0 +1,63 @@
+version: "3.8"
+
+# Environment variables are automatically loaded from .env file by docker-compose
+# Make sure to create a .env file based on .env.example
+
+services:
+  web:
+    build:
+      context: .
+      target: builder  # Build using the builder stage for development
+    container_name: document-hub-web
+    restart: unless-stopped
+    ports:
+      - "${APP_PORT:-8000}:8000"
+    # Environment variables are loaded from .env file automatically
+    # You can also override them here if needed
+    environment:
+      - PYTHONUNBUFFERED=1
+      - PYTHONFAULTHANDLER=1
+      - DATABASE_URL
+      - SECRET_KEY
+      - ACCESS_TOKEN_EXPIRE_MINUTES
+      - ALGORITHM
+      - RATE_LIMIT_PER_MINUTE
+      - ENVIRONMENT=development
+    volumes:
+      - .:/app
+      - /app/__pycache__
+      - /app/.venv
+    depends_on:
+      - db
+    command: >
+      sh -c "alembic upgrade head &&
+             uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+
+  # Database service (SQLite in development)
+  db:
+    image: sqlite:latest
+    volumes:
+      - db_data:/app/data
+    environment:
+      - SQLITE_DATABASE=${SQLITE_DATABASE:-document_hub.db}
+
+  # Uncomment for production with PostgreSQL
+  # postgres:
+  #   image: postgres:15-alpine
+  #   environment:
+  #     - POSTGRES_USER=${DB_USER}
+  #     - POSTGRES_PASSWORD=${DB_PASSWORD}
+  #     - POSTGRES_DB=${DB_NAME}
+  #   volumes:
+  #     - postgres_data:/var/lib/postgresql/data/
+  #   ports:
+  #     - "${DB_PORT:-5432}:5432"
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+  #     interval: 5s
+  #     timeout: 5s
+  #     retries: 5
+
+volumes:
+  db_data:
+  # postgres_data:
