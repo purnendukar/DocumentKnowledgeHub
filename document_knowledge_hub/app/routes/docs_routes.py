@@ -1,4 +1,4 @@
-from fastapi import APIRouter, UploadFile, File, Depends, HTTPException, BackgroundTasks, Query
+from fastapi import APIRouter, UploadFile, File, Depends, HTTPException, BackgroundTasks, Query, Request
 from sqlalchemy.orm import Session
 from typing import List, Optional
 import os
@@ -27,7 +27,7 @@ async def set_user_state(request, call_next):
 
 @router.post("/upload", response_model=schemas.DocumentOut)
 @limiter.limit("100/minute")
-async def upload_document(background_tasks: BackgroundTasks, file: UploadFile = File(...), db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+async def upload_document(request: Request, background_tasks: BackgroundTasks, file: UploadFile = File(...), db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     content = await file.read()
     if not content:
         raise HTTPException(status_code=400, detail="Empty file")
@@ -53,7 +53,7 @@ async def upload_document(background_tasks: BackgroundTasks, file: UploadFile = 
 
 @router.get("/search", response_model=List[schemas.DocumentOut])
 @limiter.limit("100/minute")
-def search_documents(q: str = Query(..., min_length=1), db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+def search_documents(request: Request, q: str = Query(..., min_length=1), db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     # simple search: keyword in filename or content (case-insensitive)
     pattern = f"%{q}%"
     results = db.query(models.Document).filter(
@@ -64,7 +64,7 @@ def search_documents(q: str = Query(..., min_length=1), db: Session = Depends(ge
 
 @router.get("/metadata/{doc_id}", response_model=schemas.DocumentOut)
 @limiter.limit("100/minute")
-def get_metadata(doc_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+def get_metadata(request: Request, doc_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     doc = db.query(models.Document).filter(models.Document.id == doc_id, models.Document.owner_id == current_user.id).first()
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
