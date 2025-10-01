@@ -1,4 +1,9 @@
-# Default ignored files
-/shelf/
-/workspace.xml
-.idea/*
+# JetBrains IDEs
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# IDE-specific stuff
+.shelf/
+workspace.xml
