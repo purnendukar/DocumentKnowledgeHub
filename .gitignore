@@ -1,3 +1,7 @@
+# Python cache and bytecode
+__pycache__/
+*.py[cod]
+
 # JetBrains IDEs
 .idea/
 *.iml
@@ -7,3 +11,5 @@
 # IDE-specific stuff
 .shelf/
 workspace.xml
+
+.env
