@@ -110,7 +110,7 @@ async def upload_document(
     background_tasks: BackgroundTasks = None,
     db: Session = Depends(get_db),
     current_user: UserModel = Depends(get_current_user),
-    _ = Depends(set_user_id)
+    _ = Depends(set_user_id),
 ):
     """
     Upload a new document to the knowledge hub.
@@ -210,11 +210,25 @@ async def list_documents(
     ### Returns:
     - Paginated list of document metadata
     """
-    return db.query(DocumentModel)\
-            .filter(DocumentModel.owner_id == current_user.id)\
-            .offset(skip)\
-            .limit(limit)\
+    try:
+        total = db.query(DocumentModel) \
+            .filter(DocumentModel.owner_id == current_user.id) \
+            .count()
+
+        documents = db.query(DocumentModel) \
+            .filter(DocumentModel.owner_id == current_user.id) \
+            .offset(skip) \
+            .limit(limit) \
             .all()
+
+        return DocumentListResponse(
+            total=total,
+            skip=skip,
+            limit=limit,
+            items=documents
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.get(
     "/search",
@@ -285,27 +299,27 @@ async def search_documents(
 @limiter.limit(RATE_LIMIT)
 async def get_document(
     request: Request,
-    document_id: int = Path(..., description="ID of the document to retrieve", example=1),
+    document_id: int = Path(..., description="ID of the document to retrieve", examples=[1]),
     db: Session = Depends(get_db),
     current_user: UserModel = Depends(get_current_user),
     _ = Depends(set_user_id)
 ):
     """
     Retrieve a document by its ID.
-    
+
     ### Path Parameters:
     - **document_id**: The unique identifier of the document
-    
+
     ### Authentication:
     - Requires valid JWT token in Authorization header
     - User must be the owner of the document
-    
+
     ### Rate Limit:
     - 100 requests per minute per user
-    
+
     ### Returns:
     - Complete document metadata and content
-    
+
     ### Errors:
     - 403: If user is not the owner of the document
     - 404: If document with the specified ID is not found
@@ -315,7 +329,7 @@ async def get_document(
                 DocumentModel.id == document_id
             )\
             .first()
-    
+
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
 
@@ -340,7 +354,7 @@ async def get_document(
 @limiter.limit(RATE_LIMIT)
 async def update_document(
     request: Request,
-    document_id: int = Path(..., description="ID of the document to update", example=1),
+    document_id: int = Path(..., description="ID of the document to update", examples=[1]),
     document_update: DocumentUpdate = Body(..., description="Document fields to update"),
     db: Session = Depends(get_db),
     current_user: UserModel = Depends(get_current_user),
@@ -348,24 +362,24 @@ async def update_document(
 ):
     """
     Update document metadata.
-    
+
     ### Path Parameters:
     - **document_id**: The unique identifier of the document to update
-    
+
     ### Request Body:
     - **filename** (optional): New filename for the document
     - **content** (optional): Updated text content for the document
-    
+
     ### Authentication:
     - Requires valid JWT token in Authorization header
     - User must be the owner of the document
-    
+
     ### Rate Limit:
     - 100 requests per minute per user
-    
+
     ### Returns:
     - Updated document with all metadata
-    
+
     ### Errors:
     - 400: If update data is invalid
     - 403: If user is not the owner of the document
@@ -378,14 +392,14 @@ async def update_document(
                 DocumentModel.owner_id == current_user.id
             )\
             .first()
-    
+
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
-    
+
     # Update fields
     for field, value in document_update.dict(exclude_unset=True).items():
         setattr(doc, field, value)
-    
+
     doc.updated_at = datetime.utcnow()
     db.commit()
     db.refresh(doc)
@@ -405,7 +419,7 @@ async def update_document(
 @limiter.limit(RATE_LIMIT)
 async def delete_document(
     request: Request,
-    document_id: int = Path(..., description="ID of the document to delete", example=1),
+    document_id: int = Path(..., description="ID of the document to delete", examples=1),
     db: Session = Depends(get_db),
     current_user: UserModel = Depends(get_current_user),
     _ = Depends(set_user_id)

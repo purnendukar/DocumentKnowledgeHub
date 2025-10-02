@@ -3,9 +3,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.docs import get_swagger_ui_html, get_redoc_html
 from fastapi.openapi.utils import get_openapi
 from fastapi.responses import JSONResponse, HTMLResponse, RedirectResponse
-from fastapi.encoders import jsonable_encoder
-from typing import Optional
-import json
 
 from .api.v1.endpoints import auth, documents
 from .core.config import settings

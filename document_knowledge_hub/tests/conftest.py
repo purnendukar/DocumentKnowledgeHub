@@ -105,3 +105,24 @@ def test_file():
     finally:
         if os.path.exists(temp_file.name):
             os.unlink(temp_file.name)
+
+
+# tests/conftest.py or in your test file
+import os
+import pytest
+from app.core.config import get_settings, Settings
+from importlib import reload
+from app.api.v1.endpoints.documents import limiter
+
+@pytest.fixture
+def override_rate_limit(monkeypatch):
+    """
+    Temporarily override RATE_LIMIT_PER_MINUTE in settings and reset limiter.
+    """
+    monkeypatch.setenv("RATE_LIMIT_PER_MINUTE", "2")
+    # Reload settings to pick up new env var
+    settings = get_settings()
+    # Reset limiter storage so previous hits don't interfere
+    limiter.reset()
+    return settings
+
