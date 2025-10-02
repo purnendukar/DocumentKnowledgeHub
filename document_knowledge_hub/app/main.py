@@ -35,7 +35,7 @@ def custom_openapi():
         - 🐳 Docker Ready
         
         ### Authentication
-        Most endpoints require authentication. Use the `/auth/token` endpoint to get a JWT token.
+        Most endpoints require authentication. Use the `/auth/login` endpoint to get a JWT token.
         
         ### Rate Limiting
         - 100 requests per minute per user
@@ -58,7 +58,7 @@ def custom_openapi():
             "type": "oauth2",
             "flows": {
                 "password": {
-                    "tokenUrl": f"{settings.API_V1_STR}/auth/token",
+                    "tokenUrl": f"{settings.API_V1_STR}/auth/login",
                     "scopes": {}
                 }
             }
@@ -103,7 +103,7 @@ app = FastAPI(
     - 🐳 Docker Ready
     
     ### Authentication
-    Most endpoints require authentication. Use the `/auth/token` endpoint to get a JWT token.
+    Most endpoints require authentication. Use the `/auth/login` endpoint to get a JWT token.
     
     ### Rate Limiting
     - 100 requests per minute per user

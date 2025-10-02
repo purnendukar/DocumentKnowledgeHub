@@ -101,7 +101,7 @@ The API uses JWT for authentication. To authenticate your requests:
 1. Get an access token:
    ```bash
    curl -X 'POST' \
-     'http://localhost:8000/api/v1/auth/token' \
+     'http://localhost:8000/api/v1/auth/login' \
      -H 'accept: application/json' \
      -H 'Content-Type: application/x-www-form-urlencoded' \
      -d 'username=testuser&password=testpass'
@@ -115,7 +115,7 @@ The API uses JWT for authentication. To authenticate your requests:
 ## 📚 API Endpoints
 
 ### Authentication
-- `POST /api/v1/auth/token` - Get access token
+- `POST /api/v1/auth/login` - Get access token
 - `POST /api/v1/auth/register` - Register new user
 
 ### Documents

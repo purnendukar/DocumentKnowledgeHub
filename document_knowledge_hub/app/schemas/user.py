@@ -37,7 +37,9 @@ class UserInDB(UserInDBBase):
         from_attributes = True
 
 class UserInResponse(UserInDBBase):
-    pass
+
+    class Config:
+        from_attributes = True
 
 class User(UserInDBBase):
     pass

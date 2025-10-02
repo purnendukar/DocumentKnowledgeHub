@@ -132,6 +132,19 @@ async def upload_document(
     ### Returns:
     - Document metadata and extracted text content
     """
+    # Validate file type first before reading content
+    allowed_content_types = {
+        'application/pdf',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'text/plain'
+    }
+
+    if file.content_type not in allowed_content_types:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Unsupported file type: {file.content_type}. Supported types: {', '.join(allowed_content_types)}"
+        )
+
     try:
         content = await file.read()
         if not content:
@@ -225,36 +238,38 @@ async def search_documents(
 ):
     """
     Search documents by content or filename.
-    
-    ### Query Parameters:
-    - **q**: Search query (min: 2 chars, max: 100 chars)
-    - **skip**: Number of documents to skip (default: 0)
-    - **limit**: Maximum number of documents to return (default: 10, max: 100)
-    
-    ### Search Behavior:
-    - Case-insensitive search
-    - Searches in both filename and document content
-    - Partial matches are returned
-    
-    ### Authentication:
-    - Requires valid JWT token in Authorization header
-    
-    ### Rate Limit:
-    - 100 requests per minute per user
-    
-    ### Returns:
-    - Paginated list of matching documents with metadata
     """
-    pattern = f"%{q}%"
-    return db.query(DocumentModel)\
+    if not q.strip():
+        raise HTTPException(status_code=400, detail="Search query cannot be empty")
+
+    try:
+        pattern = f"%{q}%"
+
+        # Get total count first
+        total = db.query(DocumentModel) \
             .filter(
-                (DocumentModel.owner_id == current_user.id) &
-                ((DocumentModel.filename.ilike(pattern)) | 
-                 (DocumentModel.content.ilike(pattern)))
-            )\
-            .offset(skip)\
-            .limit(limit)\
-            .all()
+            (DocumentModel.owner_id == current_user.id) &
+            ((DocumentModel.filename.ilike(pattern)) |
+             (DocumentModel.content.ilike(pattern)))
+        ).count()
+
+        # Get paginated results
+        results: List[DocumentModel] = db.query(DocumentModel) \
+            .filter(
+            (DocumentModel.owner_id == current_user.id) &
+            ((DocumentModel.filename.ilike(pattern)) |
+             (DocumentModel.content.ilike(pattern)))
+        ).offset(skip).limit(limit).all()
+
+        return DocumentListResponse(
+            items=[DocumentOut.model_validate(doc) for doc in results],
+            total=total,
+            skip=skip,
+            limit=limit
+        )
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.get(
     "/{document_id}",
@@ -297,13 +312,16 @@ async def get_document(
     """
     doc = db.query(DocumentModel)\
             .filter(
-                DocumentModel.id == document_id,
-                DocumentModel.owner_id == current_user.id
+                DocumentModel.id == document_id
             )\
             .first()
     
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
+
+    if doc.owner_id!=current_user.id:
+        raise HTTPException(status_code=403, detail="Not authorized to access this document")
+
     return doc
 
 @router.put(
