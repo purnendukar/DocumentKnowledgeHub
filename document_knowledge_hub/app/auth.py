@@ -54,7 +54,7 @@ def authenticate_user(db: Session, username: str, password: str):
 def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Could not validate credentials",
+        detail="Could not validate credentials 1",
         headers={"WWW-Authenticate": "Bearer"},
     )
     try:

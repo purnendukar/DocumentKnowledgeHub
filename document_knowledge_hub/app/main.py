@@ -1,42 +1,54 @@
-from fastapi import FastAPI, Request
+import uvicorn
+from fastapi import FastAPI, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
-from slowapi import _rate_limit_exceeded_handler
-from slowapi.errors import RateLimitExceeded
-from slowapi.extension import Limiter as SlowLimiter
-from slowapi.util import get_remote_address
+from fastapi.params import Header
+from fastapi.security import OAuth2PasswordBearer
+from jose import JWTError
+from pydantic import BaseModel
+from typing import Optional
 
-from .database import init_db
-from .routes import auth_routes, docs_routes
+from .api.v1.endpoints import auth, documents
+from .core.config import settings
+from .core.security import get_current_user
+from .db.session import get_db, Base, engine
 
-import os
-from dotenv import load_dotenv
+# Create database tables
+Base.metadata.create_all(bind=engine)
 
-load_dotenv()
+app = FastAPI(
+    title="Document Knowledge Hub API",
+    description="RESTful API for Document Knowledge Hub",
+    version="1.0.0",
+    openapi_url=f"{settings.API_V1_STR}/openapi.json"
+)
 
-app = FastAPI(title="Document Knowledge Hub", version="1.0")
-
-# Initialize DB (create tables)
-init_db()
-
-# CORS
+# Set up CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=settings.BACKEND_CORS_ORIGINS,
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Attach routers
-app.include_router(auth_routes.router)
-app.include_router(docs_routes.router)
+# Include API routers
+app.include_router(
+    auth.router,
+    prefix=settings.API_V1_STR,
+    tags=["authentication"]
+)
 
-# slowapi setup (global)
-limiter = SlowLimiter(key_func=get_remote_address)
-app.state.limiter = limiter
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.include_router(
+    documents.router,
+    prefix=f"{settings.API_V1_STR}",
+    tags=["documents"]
+)
 
-# Middleware to optionally set request.state.user_key for per-user limiter in docs_routes
-@app.middleware("http")
-async def attach_user_key(request: Request, call_next):
-    # leave token in state for per-user key in docs_routes limiter (already handled there)
-    return await call_next(request)
+# Health check endpoint
+@app.get("/")
+async def root():
+    return {"message": "Welcome to Document Knowledge Hub API"}
+
+@app.get("/health")
+async def health_check():
+    return {"status": "ok"}
