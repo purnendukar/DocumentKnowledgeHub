@@ -1,3 +1,4 @@
+from dotenv import load_dotenv
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing import Optional, Dict, Any, List, Union
@@ -6,12 +7,15 @@ import secrets
 import os
 from pathlib import Path
 
+load_dotenv()
+
 class Settings(BaseSettings):
     # API Settings
     API_V1_STR: str = "/api/v1"
     SECRET_KEY: str = Field(default_factory=lambda: os.getenv("SECRET_KEY", secrets.token_urlsafe(32)))
-    ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 days
+    ALGORITHM: str = os.getenv("ALGORITHM", "HS256")
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", 60)
+    RATE_LIMIT_PER_MINUTE: int = os.getenv("RATE_LIMIT_PER_MINUTE", 100)
     
     # CORS
     BACKEND_CORS_ORIGINS: List[str] = ["*"]

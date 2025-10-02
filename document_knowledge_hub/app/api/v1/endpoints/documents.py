@@ -1,10 +1,14 @@
+import os
 from datetime import datetime
 from typing import List
 
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, BackgroundTasks, Request
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, BackgroundTasks, Request, Query, Path, \
+    Body
+from pydantic import BaseModel, Field
 from slowapi.util import get_remote_address
 from sqlalchemy.orm import Session
 from slowapi.extension import Limiter as SlowLimiter
+from dotenv import load_dotenv
 
 from ....db.session import get_db
 from ....models.user import User as UserModel
@@ -12,6 +16,63 @@ from ....models.document import Document as DocumentModel
 from ....schemas.document import DocumentUpdate, DocumentOut
 from ....core.security import get_current_user
 from ....utils.extractors import extract_text
+
+
+
+load_dotenv()
+RATE_LIMIT_PER_MINUTE = os.getenv("RATE_LIMIT_PER_MINUTE", 100)
+RATE_LIMIT = f"{RATE_LIMIT_PER_MINUTE}/minute"
+
+# Request/Response Models for API documentation
+class DocumentCreate(BaseModel):
+    """Document creation model with file upload."""
+    file: UploadFile = Field(..., description="Document file to upload (PDF, DOCX, or TXT)")
+    
+    class Config:
+        schema_extra = {
+            "example": {
+                "file": "example.pdf"
+            }
+        }
+
+class DocumentResponse(DocumentOut):
+    """Document response model with additional metadata."""
+    class Config:
+        schema_extra = {
+            "example": {
+                "id": 1,
+                "filename": "example.pdf",
+                "content_type": "application/pdf",
+                "size": 1024,
+                "uploaded_at": "2023-01-01T12:00:00Z",
+                "content": "Extracted text content from the document..."
+            }
+        }
+
+class DocumentListResponse(BaseModel):
+    """Paginated list of documents."""
+    items: List[DocumentOut] = Field(..., description="List of documents")
+    total: int = Field(..., description="Total number of documents")
+    skip: int = Field(..., description="Number of documents skipped")
+    limit: int = Field(..., description="Maximum number of documents returned")
+    
+    class Config:
+        schema_extra = {
+            "example": {
+                "items": [
+                    {
+                        "id": 1,
+                        "filename": "example.pdf",
+                        "content_type": "application/pdf",
+                        "size": 1024,
+                        "uploaded_at": "2023-01-01T12:00:00Z"
+                    }
+                ],
+                "total": 1,
+                "skip": 0,
+                "limit": 10
+            }
+        }
 
 # Create a limiter instance (memory-based for demo)
 limiter = SlowLimiter(
@@ -29,23 +90,47 @@ async def set_user_id(request: Request, current_user: UserModel = Depends(get_cu
     """
     request.state.user_id = current_user.id
 
-
-RATE_LIMIT = "100/minute"
-
-@router.post("", response_model=DocumentOut, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "",
+    response_model=DocumentResponse,
+    status_code=status.HTTP_201_CREATED,
+    responses={
+        201: {"description": "Document uploaded successfully"},
+        400: {"description": "Invalid file type or content"},
+        401: {"description": "Not authenticated"},
+        413: {"description": "File too large"},
+        429: {"description": "Rate limit exceeded"},
+        500: {"description": "Internal server error"}
+    }
+)
 @limiter.limit(RATE_LIMIT)
 async def upload_document(
     request: Request,
-    file: UploadFile = File(...),
+    file: UploadFile = File(..., description="Document file to upload (PDF, DOCX, or TXT)"),
     background_tasks: BackgroundTasks = None,
     db: Session = Depends(get_db),
     current_user: UserModel = Depends(get_current_user),
     _ = Depends(set_user_id)
 ):
     """
-    Upload a new document.
-    - **file**: The document file to upload
-    - Returns: The created document with metadata
+    Upload a new document to the knowledge hub.
+    
+    ### Supported File Types:
+    - PDF (.pdf)
+    - Word (.docx)
+    - Text (.txt)
+    
+    ### File Size Limit:
+    - Maximum 10MB per file
+    
+    ### Authentication:
+    - Requires valid JWT token in Authorization header
+    
+    ### Rate Limit:
+    - 100 requests per minute per user
+    
+    ### Returns:
+    - Document metadata and extracted text content
     """
     try:
         content = await file.read()
@@ -78,20 +163,39 @@ async def upload_document(
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("", response_model=List[DocumentOut])
+@router.get(
+    "",
+    response_model=DocumentListResponse,
+    responses={
+        200: {"description": "List of documents retrieved successfully"},
+        401: {"description": "Not authenticated"},
+        429: {"description": "Rate limit exceeded"}
+    }
+)
 @limiter.limit(RATE_LIMIT)
 async def list_documents(
     request: Request,
-    skip: int = 0,
-    limit: int = 10,
+    skip: int = Query(0, ge=0, description="Number of records to skip"),
+    limit: int = Query(10, ge=1, le=100, description="Maximum number of records to return"),
     db: Session = Depends(get_db),
     current_user: UserModel = Depends(get_current_user),
     _ = Depends(set_user_id)
 ):
     """
     List all documents for the current user with pagination.
-    - **skip**: Number of records to skip
-    - **limit**: Maximum number of records to return
+    
+    ### Query Parameters:
+    - **skip**: Number of documents to skip (default: 0)
+    - **limit**: Maximum number of documents to return (default: 10, max: 100)
+    
+    ### Authentication:
+    - Requires valid JWT token in Authorization header
+    
+    ### Rate Limit:
+    - 100 requests per minute per user
+    
+    ### Returns:
+    - Paginated list of document metadata
     """
     return db.query(DocumentModel)\
             .filter(DocumentModel.owner_id == current_user.id)\
@@ -99,22 +203,47 @@ async def list_documents(
             .limit(limit)\
             .all()
 
-@router.get("/search", response_model=List[DocumentOut])
+@router.get(
+    "/search",
+    response_model=DocumentListResponse,
+    responses={
+        200: {"description": "Search results retrieved successfully"},
+        400: {"description": "Invalid search query"},
+        401: {"description": "Not authenticated"},
+        429: {"description": "Rate limit exceeded"}
+    }
+)
 @limiter.limit(RATE_LIMIT)
 async def search_documents(
     request: Request,
-    q: str,
-    skip: int = 0,
-    limit: int = 10,
+    q: str = Query(..., min_length=2, max_length=100, description="Search query string"),
+    skip: int = Query(0, ge=0, description="Number of records to skip"),
+    limit: int = Query(10, ge=1, le=100, description="Maximum number of records to return"),
     db: Session = Depends(get_db),
     current_user: UserModel = Depends(get_current_user),
     _ = Depends(set_user_id)
 ):
     """
     Search documents by content or filename.
-    - **q**: Search query string
-    - **skip**: Number of records to skip
-    - **limit**: Maximum number of records to return
+    
+    ### Query Parameters:
+    - **q**: Search query (min: 2 chars, max: 100 chars)
+    - **skip**: Number of documents to skip (default: 0)
+    - **limit**: Maximum number of documents to return (default: 10, max: 100)
+    
+    ### Search Behavior:
+    - Case-insensitive search
+    - Searches in both filename and document content
+    - Partial matches are returned
+    
+    ### Authentication:
+    - Requires valid JWT token in Authorization header
+    
+    ### Rate Limit:
+    - 100 requests per minute per user
+    
+    ### Returns:
+    - Paginated list of matching documents with metadata
     """
     pattern = f"%{q}%"
     return db.query(DocumentModel)\
@@ -127,18 +256,44 @@ async def search_documents(
             .limit(limit)\
             .all()
 
-@router.get("/{document_id}", response_model=DocumentOut)
+@router.get(
+    "/{document_id}",
+    response_model=DocumentResponse,
+    responses={
+        200: {"description": "Document retrieved successfully"},
+        401: {"description": "Not authenticated"},
+        403: {"description": "Not authorized to access this document"},
+        404: {"description": "Document not found"},
+        429: {"description": "Rate limit exceeded"}
+    }
+)
 @limiter.limit(RATE_LIMIT)
 async def get_document(
     request: Request,
-    document_id: int,
+    document_id: int = Path(..., description="ID of the document to retrieve", example=1),
     db: Session = Depends(get_db),
     current_user: UserModel = Depends(get_current_user),
     _ = Depends(set_user_id)
 ):
     """
-    Get document by ID.
-    - **document_id**: ID of the document to retrieve
+    Retrieve a document by its ID.
+    
+    ### Path Parameters:
+    - **document_id**: The unique identifier of the document
+    
+    ### Authentication:
+    - Requires valid JWT token in Authorization header
+    - User must be the owner of the document
+    
+    ### Rate Limit:
+    - 100 requests per minute per user
+    
+    ### Returns:
+    - Complete document metadata and content
+    
+    ### Errors:
+    - 403: If user is not the owner of the document
+    - 404: If document with the specified ID is not found
     """
     doc = db.query(DocumentModel)\
             .filter(
@@ -151,20 +306,53 @@ async def get_document(
         raise HTTPException(status_code=404, detail="Document not found")
     return doc
 
-@router.put("/{document_id}", response_model=DocumentOut)
+@router.put(
+    "/{document_id}",
+    response_model=DocumentResponse,
+    responses={
+        200: {"description": "Document updated successfully"},
+        400: {"description": "Invalid update data"},
+        401: {"description": "Not authenticated"},
+        403: {"description": "Not authorized to update this document"},
+        404: {"description": "Document not found"},
+        409: {"description": "Document with this name already exists"},
+        429: {"description": "Rate limit exceeded"}
+    }
+)
 @limiter.limit(RATE_LIMIT)
 async def update_document(
     request: Request,
-    document_id: int,
-    document_update: DocumentUpdate,
+    document_id: int = Path(..., description="ID of the document to update", example=1),
+    document_update: DocumentUpdate = Body(..., description="Document fields to update"),
     db: Session = Depends(get_db),
     current_user: UserModel = Depends(get_current_user),
     _ = Depends(set_user_id)
 ):
     """
     Update document metadata.
-    - **document_id**: ID of the document to update
-    - **document_update**: Fields to update
+    
+    ### Path Parameters:
+    - **document_id**: The unique identifier of the document to update
+    
+    ### Request Body:
+    - **filename** (optional): New filename for the document
+    - **content** (optional): Updated text content for the document
+    
+    ### Authentication:
+    - Requires valid JWT token in Authorization header
+    - User must be the owner of the document
+    
+    ### Rate Limit:
+    - 100 requests per minute per user
+    
+    ### Returns:
+    - Updated document with all metadata
+    
+    ### Errors:
+    - 400: If update data is invalid
+    - 403: If user is not the owner of the document
+    - 404: If document with the specified ID is not found
+    - 409: If a document with the new filename already exists
     """
     doc = db.query(DocumentModel)\
             .filter(
@@ -185,18 +373,44 @@ async def update_document(
     db.refresh(doc)
     return doc
 
-@router.delete("/{document_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/{document_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses={
+        204: {"description": "Document deleted successfully"},
+        401: {"description": "Not authenticated"},
+        403: {"description": "Not authorized to delete this document"},
+        404: {"description": "Document not found"},
+        429: {"description": "Rate limit exceeded"}
+    }
+)
 @limiter.limit(RATE_LIMIT)
 async def delete_document(
     request: Request,
-    document_id: int,
+    document_id: int = Path(..., description="ID of the document to delete", example=1),
     db: Session = Depends(get_db),
     current_user: UserModel = Depends(get_current_user),
     _ = Depends(set_user_id)
 ):
     """
-    Delete a document.
-    - **document_id**: ID of the document to delete
+    Delete a document by its ID.
+    
+    ### Path Parameters:
+    - **document_id**: The unique identifier of the document to delete
+    
+    ### Authentication:
+    - Requires valid JWT token in Authorization header
+    - User must be the owner of the document
+    
+    ### Rate Limit:
+    - 100 requests per minute per user
+    
+    ### Returns:
+    - 204 No Content on successful deletion
+    
+    ### Errors:
+    - 403: If user is not the owner of the document
+    - 404: If document with the specified ID is not found
     """
     doc = db.query(DocumentModel)\
             .filter(
