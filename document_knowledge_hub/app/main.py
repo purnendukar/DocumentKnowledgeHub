@@ -1,15 +1,8 @@
-import uvicorn
-from fastapi import FastAPI, Request, Depends
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.params import Header
-from fastapi.security import OAuth2PasswordBearer
-from jose import JWTError
-from pydantic import BaseModel
-from typing import Optional
 
 from .api.v1.endpoints import auth, documents
 from .core.config import settings
-from .core.security import get_current_user
 from .db.session import get_db, Base, engine
 
 # Create database tables

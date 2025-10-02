@@ -103,16 +103,13 @@ async def get_current_user(
         )
     
     token = authorization.split(" ")[1]
-    print(token, authorization)
     
     try:
         payload = verify_token(token)
-        print(payload)
         if payload is None:
             raise credentials_exception
             
         user_id: int = payload.get("sub")
-        print(user_id)
         if user_id is None:
             raise credentials_exception
             

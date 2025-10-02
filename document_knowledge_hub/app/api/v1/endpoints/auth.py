@@ -75,7 +75,6 @@ async def login_access_token(
     user = db.execute(
         select(UserModel).where(UserModel.username == form_data.username)
     ).scalar_one_or_none()
-    print(user)
 
     if not user or not verify_password(form_data.password, user.hashed_password):
         raise HTTPException(
