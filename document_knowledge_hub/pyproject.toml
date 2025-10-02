@@ -1,0 +1,39 @@
+[tool.poetry]
+name = "document-knowledge-hub"
+version = "0.1.0"
+description = "A Document Knowledge Hub built with FastAPI"
+authors = ["Purnendu Kar <purnendu@gmail.com>"]
+#readme = "README.md"
+
+packages = [
+    { include = "app" }
+]
+
+
+[tool.poetry.dependencies]
+python = ">=3.12,<4.0"
+fastapi = "^0.111.0"
+uvicorn = {extras = ["standard"], version = "^0.30.0"}
+sqlalchemy = "^2.0.29"
+alembic = "^1.13.1"
+pydantic = "^2.7.0"
+python-multipart = "^0.0.9"
+PyPDF2 = "^3.0.1"
+python-docx = "^0.8.11"
+bcrypt = ">=4.0.0,<4.1.0"
+passlib = {extras = ["bcrypt"], version = "^1.7.4"}
+PyJWT = "^2.8.0"
+slowapi = "^0.1.9"
+itsdangerous = "^2.2.0"
+python-dotenv = "^1.0.1"
+psycopg2-binary = "^2.9.10"
+python-jose = {extras = ["cryptography"], version = "^3.5.0"}
+pydantic-settings = "^2.11.0"
+email-validator = "^2.3.0"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.0.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

@@ -23,7 +23,7 @@ class DocumentInDBBase(DocumentBase):
     is_active: bool = True
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 class Document(DocumentInDBBase):
     content: Optional[str] = None

@@ -4,44 +4,32 @@ version: "3.8"
 # Make sure to create a .env file based on .env.example
 
 services:
-  web:
+  document_knowledge_hub:
     build:
       context: .
       target: builder  # Build using the builder stage for development
-    container_name: document-hub-web
+    container_name: document-knowledge-hub
     restart: unless-stopped
     ports:
       - "${APP_PORT:-8000}:8000"
-    # Environment variables are loaded from .env file automatically
-    # You can also override them here if needed
     environment:
       - PYTHONUNBUFFERED=1
       - PYTHONFAULTHANDLER=1
-      - DATABASE_URL
-      - SECRET_KEY
-      - ACCESS_TOKEN_EXPIRE_MINUTES
-      - ALGORITHM
-      - RATE_LIMIT_PER_MINUTE
+      - DATABASE_URL=sqlite:///./app/data/document_hub.db
+      - SECRET_KEY=${SECRET_KEY}
+      - ACCESS_TOKEN_EXPIRE_MINUTES=${ACCESS_TOKEN_EXPIRE_MINUTES}
+      - ALGORITHM=${ALGORITHM}
+      - RATE_LIMIT_PER_MINUTE=${RATE_LIMIT_PER_MINUTE}
       - ENVIRONMENT=development
     volumes:
       - .:/app
+      - ./app/data:/app/data   # <-- persistence for sqlite file
       - /app/__pycache__
       - /app/.venv
-    depends_on:
-      - db
     command: >
       sh -c "alembic upgrade head &&
              uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
 
-  # Database service (SQLite in development)
-  db:
-    image: sqlite:latest
-    volumes:
-      - db_data:/app/data
-    environment:
-      - SQLITE_DATABASE=${SQLITE_DATABASE:-document_hub.db}
-
-  # Uncomment for production with PostgreSQL
   # postgres:
   #   image: postgres:15-alpine
   #   environment:

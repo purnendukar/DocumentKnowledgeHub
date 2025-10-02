@@ -21,7 +21,7 @@ RUN pip install "poetry==$POETRY_VERSION"
 WORKDIR /app
 
 # Copy only the files needed for dependency installation
-COPY ../pyproject.toml poetry.lock* ./
+COPY pyproject.toml poetry.lock* ./
 
 # Install dependencies
 RUN poetry config virtualenvs.create false && \
