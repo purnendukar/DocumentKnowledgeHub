@@ -32,7 +32,7 @@ A secure, scalable document management and knowledge extraction system built wit
 ## 🏗️ Project Structure
 
 ```
-.
+docuemnt_knowledge_hub
 ├── app/
 │   ├── api/
 │   │   └── v1/
