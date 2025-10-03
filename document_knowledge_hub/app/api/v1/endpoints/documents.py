@@ -3,12 +3,12 @@ from datetime import datetime
 from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, BackgroundTasks, Request, Query, Path, \
-    Body
+    Body, Security
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel, Field
 from slowapi.util import get_remote_address
 from sqlalchemy.orm import Session
 from slowapi.extension import Limiter as SlowLimiter
-from dotenv import load_dotenv
 
 from ....db.session import get_db
 from ....models.user import User as UserModel
@@ -16,12 +16,10 @@ from ....models.document import Document as DocumentModel
 from ....schemas.document import DocumentUpdate, DocumentOut
 from ....core.security import get_current_user
 from ....utils.extractors import extract_text
+from ....core.config import settings
 
 
-
-load_dotenv()
-RATE_LIMIT_PER_MINUTE = os.getenv("RATE_LIMIT_PER_MINUTE", 100)
-RATE_LIMIT = f"{RATE_LIMIT_PER_MINUTE}/minute"
+RATE_LIMIT = f"{settings.RATE_LIMIT_PER_MINUTE}/minute"
 
 # Request/Response Models for API documentation
 class DocumentCreate(BaseModel):
@@ -81,7 +79,17 @@ limiter = SlowLimiter(
     else get_remote_address(request)
 )
 
-router = APIRouter(prefix="/documents", tags=["documents"])
+router = APIRouter(
+    prefix="/documents",
+    tags=["documents"],
+    dependencies=[Depends(get_current_user)],
+    responses={
+        401: {"description": "Unauthorized - Invalid or missing JWT token"},
+        403: {"description": "Forbidden - Insufficient permissions"},
+        429: {"description": "Too Many Requests - Rate limit exceeded"},
+        500: {"description": "Internal Server Error"}
+    }
+)
 
 
 async def set_user_id(request: Request, current_user: UserModel = Depends(get_current_user)):
@@ -98,9 +106,23 @@ async def set_user_id(request: Request, current_user: UserModel = Depends(get_cu
         201: {"description": "Document uploaded successfully"},
         400: {"description": "Invalid file type or content"},
         401: {"description": "Not authenticated"},
+        403: {"description": "Insufficient permissions"},
         413: {"description": "File too large"},
         429: {"description": "Rate limit exceeded"},
         500: {"description": "Internal server error"}
+    },
+    openapi_extra={
+        "security": [{"Bearer": []}],
+        "components": {
+            "securitySchemes": {
+                "Bearer": {
+                    "type": "http",
+                    "scheme": "bearer",
+                    "bearerFormat": "JWT",
+                    "description": "Enter JWT token in the format: Bearer <token>"
+                }
+            }
+        }
     }
 )
 @limiter.limit(RATE_LIMIT)
@@ -182,7 +204,21 @@ async def upload_document(
     responses={
         200: {"description": "List of documents retrieved successfully"},
         401: {"description": "Not authenticated"},
+        403: {"description": "Insufficient permissions"},
         429: {"description": "Rate limit exceeded"}
+    },
+    openapi_extra={
+        "security": [{"Bearer": []}],
+        "components": {
+            "securitySchemes": {
+                "Bearer": {
+                    "type": "http",
+                    "scheme": "bearer",
+                    "bearerFormat": "JWT",
+                    "description": "Enter JWT token in the format: Bearer <token>"
+                }
+            }
+        }
     }
 )
 @limiter.limit(RATE_LIMIT)
@@ -237,7 +273,21 @@ async def list_documents(
         200: {"description": "Search results retrieved successfully"},
         400: {"description": "Invalid search query"},
         401: {"description": "Not authenticated"},
+        403: {"description": "Insufficient permissions"},
         429: {"description": "Rate limit exceeded"}
+    },
+    openapi_extra={
+        "security": [{"Bearer": []}],
+        "components": {
+            "securitySchemes": {
+                "Bearer": {
+                    "type": "http",
+                    "scheme": "bearer",
+                    "bearerFormat": "JWT",
+                    "description": "Enter JWT token in the format: Bearer <token>"
+                }
+            }
+        }
     }
 )
 @limiter.limit(RATE_LIMIT)
@@ -294,6 +344,19 @@ async def search_documents(
         403: {"description": "Not authorized to access this document"},
         404: {"description": "Document not found"},
         429: {"description": "Rate limit exceeded"}
+    },
+    openapi_extra={
+        "security": [{"Bearer": []}],
+        "components": {
+            "securitySchemes": {
+                "Bearer": {
+                    "type": "http",
+                    "scheme": "bearer",
+                    "bearerFormat": "JWT",
+                    "description": "Enter JWT token in the format: Bearer <token>"
+                }
+            }
+        }
     }
 )
 @limiter.limit(RATE_LIMIT)
@@ -349,6 +412,19 @@ async def get_document(
         404: {"description": "Document not found"},
         409: {"description": "Document with this name already exists"},
         429: {"description": "Rate limit exceeded"}
+    },
+    openapi_extra={
+        "security": [{"Bearer": []}],
+        "components": {
+            "securitySchemes": {
+                "Bearer": {
+                    "type": "http",
+                    "scheme": "bearer",
+                    "bearerFormat": "JWT",
+                    "description": "Enter JWT token in the format: Bearer <token>"
+                }
+            }
+        }
     }
 )
 @limiter.limit(RATE_LIMIT)
@@ -414,6 +490,19 @@ async def update_document(
         403: {"description": "Not authorized to delete this document"},
         404: {"description": "Document not found"},
         429: {"description": "Rate limit exceeded"}
+    },
+    openapi_extra={
+        "security": [{"Bearer": []}],
+        "components": {
+            "securitySchemes": {
+                "Bearer": {
+                    "type": "http",
+                    "scheme": "bearer",
+                    "bearerFormat": "JWT",
+                    "description": "Enter JWT token in the format: Bearer <token>"
+                }
+            }
+        }
     }
 )
 @limiter.limit(RATE_LIMIT)

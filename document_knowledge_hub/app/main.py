@@ -51,19 +51,16 @@ def custom_openapi():
     
     # Add security schemes
     openapi_schema["components"]["securitySchemes"] = {
-        "OAuth2PasswordBearer": {
-            "type": "oauth2",
-            "flows": {
-                "password": {
-                    "tokenUrl": f"{settings.API_V1_STR}/auth/login",
-                    "scopes": {}
-                }
-            }
+        "Bearer": {
+            "type": "http",
+            "scheme": "bearer",
+            "bearerFormat": "JWT",
+            "description": "JWT Authorization header using the Bearer scheme. Example: \"Authorization: Bearer {token}\""
         }
     }
     
     # Add global security
-    openapi_schema["security"] = [{"OAuth2PasswordBearer": []}]
+    openapi_schema["security"] = [{"Bearer": []}]
     
     # Add more detailed error responses
     for path in openapi_schema["paths"].values():
