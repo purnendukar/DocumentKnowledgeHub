@@ -63,8 +63,8 @@ A secure, scalable document management and knowledge extraction system built wit
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/yourusername/document-knowledge-hub.git
-   cd document-knowledge-hub
+   git clone https://github.com/purnendukar/DocumentKnowledgeHub.git
+   cd DocumentKnowledgeHub/document_knowledge_hub
    ```
 
 2. **Set up environment variables**
